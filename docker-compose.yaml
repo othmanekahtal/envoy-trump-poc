@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.30-latest
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "80:8080"  # Binds port 80 locally so our plain domain mapping tests look real
+      - "9901:9901"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mock-app:
+    image: mendhak/http-https-echo:latest
+    ports:
+      - "3000:8080"

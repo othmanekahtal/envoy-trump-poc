@@ -1,0 +1,73 @@
+admin:
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: listener_http
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 8080 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: trump_routing
+                  virtual_hosts:
+                    
+                    # 1. EXCEPTION RULE: Leave my-account subdomains alone
+                    - name: my_account_exception
+                      domains: ["my-account.xxxx.ma"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route: { cluster: target_app_cluster }
+
+                    # 2. REDIRECT RULE: xxxx.ma -> xxxx.com/ma/MA-fr
+                    - name: ma_redirect_domain
+                      domains: ["xxxx.ma"]
+                      routes:
+                        - match: { prefix: "/" }
+                          redirect:
+                            host_redirect: "xxxx.com"
+                            path_redirect: "/ma/MA-fr"
+                            response_code: MOVED_PERMANENTLY
+
+                    # 3. REDIRECT RULE: xxxx.fr -> xxxx.com/fr/fr
+                    - name: fr_redirect_domain
+                      domains: ["xxxx.fr"]
+                      routes:
+                        - match: { prefix: "/" }
+                          redirect:
+                            host_redirect: "xxxx.com"
+                            path_redirect: "/fr/fr"
+                            response_code: MOVED_PERMANENTLY
+
+                    # 4. MAIN CORE APPLICATION HOST
+                    - name: main_app_domain
+                      domains: ["xxxx.com"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route: { cluster: target_app_cluster }
+
+  clusters:
+    - name: target_app_cluster
+      connect_timeout: 0.25s
+      type: LOGICAL_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: target_app_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      # Mocks traffic to a simple local echo/web app running on port 3000
+                      address: host.docker.internal
+                      port_value: 3000
