@@ -32,6 +32,9 @@ static_resources:
                     - name: ma_redirect_domain
                       domains: ["xxxx.ma"]
                       routes:
+                        # 2a. EXCEPTION: xxxx.ma/portal stays put, no redirect
+                        - match: { prefix: "/portal" }
+                          route: { cluster: target_app_cluster }
                         - match: { prefix: "/" }
                           redirect:
                             host_redirect: "xxxx.com"
