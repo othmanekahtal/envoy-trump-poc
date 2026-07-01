@@ -32,9 +32,12 @@ static_resources:
                     - name: ma_redirect_domain
                       domains: ["xxxx.ma"]
                       routes:
-                        # 2a. EXCEPTION: xxxx.ma/portal stays put, no redirect
+                        # 2a. EXCEPTION: xxxx.ma/portal -> xxxx.com/MA-fr/portal
                         - match: { prefix: "/portal" }
-                          route: { cluster: target_app_cluster }
+                          redirect:
+                            host_redirect: "xxxx.com"
+                            path_redirect: "/MA-fr/portal"
+                            response_code: MOVED_PERMANENTLY
                         - match: { prefix: "/" }
                           redirect:
                             host_redirect: "xxxx.com"
@@ -55,6 +58,13 @@ static_resources:
                     - name: main_app_domain
                       domains: ["xxxx.com"]
                       routes:
+                        # 4a. PROXY: xxxx.com/MA-fr/portal is transparently forwarded to wesite-portal.com (URL stays put)
+                        - match: { prefix: "/MA-fr/portal" }
+                          route:
+                            cluster: wesite_portal_cluster
+                            # Legacy backend keys off the Host header, so it must see wesite-portal.com
+                            # even though Envoy physically connects to host.docker.internal:8080
+                            host_rewrite_literal: "wesite-portal.com"
                         - match: { prefix: "/" }
                           route: { cluster: target_app_cluster }
 
@@ -74,3 +84,19 @@ static_resources:
                       # Mocks traffic to a simple local echo/web app running on port 3000
                       address: host.docker.internal
                       port_value: 3000
+
+    - name: wesite_portal_cluster
+      connect_timeout: 0.25s
+      type: LOGICAL_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: wesite_portal_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      # Node.js hello-world app published on host port 8080
+                      address: host.docker.internal
+                      port_value: 8080

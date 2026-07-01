@@ -15,3 +15,8 @@ services:
     image: mendhak/http-https-echo:latest
     ports:
       - "3000:8080"
+
+  wesite-portal:
+    build: ./node-app
+    ports:
+      - "8080:8080"  # matches the 127.0.0.1:8080 wesite-portal.com /etc/hosts entry
